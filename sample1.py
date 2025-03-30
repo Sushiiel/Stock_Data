@@ -448,6 +448,7 @@ def model():
                 countdown_placeholder.write(f"🔄 Refreshing in {i} seconds...")
                 time.sleep(1)
             countdown_placeholder.write("✅ Refreshing Now!")
+            del st.session_state.predictions
             clear_state()
             st.rerun()
 
