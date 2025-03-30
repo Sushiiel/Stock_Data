@@ -366,7 +366,9 @@ def get_csv_filenames(folder_path):
 
 folder_path = './new_folder'
 csv_filenames1 = get_csv_filenames(folder_path)
-
+def clear_state():
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
 
 def model():
     st.subheader("Train the Model")
@@ -450,9 +452,15 @@ def model():
                 st.write(f"Prediction {i+1}: **{pred:.2f}**")
             if "model_accuracy" in st.session_state:
                 st.write(f"**Model Accuracy (R² Score):** {st.session_state.model_accuracy:.4f}")
-            st.write("### Refreshing in 40 seconds... ⏳")
+            st.write("### Refreshing in 10 seconds... ⏳")
             time.sleep(10)
-            st.experimental_rerun()
+            countdown_placeholder = st.empty()
+            for i in range(countdown_duration, 0, -1):
+                     countdown_placeholder.write(f"⏳ Time remaining: {i} seconds")
+                     time.sleep(1)
+            countdown_placeholder.write("✅ Time's up!")
+            clear_state()
+            st.rerun()
 
 # get_chart_value(dataset_links=dataset_links)
 # predict_price()
