@@ -393,9 +393,9 @@ def model():
             st.error("Dataset is empty. Check the CSV file.")
             return
 
-        # Convert 't' column (if present) to Unix timestamp
+        # Ensure 't' column remains as an integer string
         if "t" in dataset.columns:
-            dataset["t"] = pd.to_datetime(dataset["t"], errors='coerce').astype(int) // 10**9  # Convert to Unix
+            dataset["t"] = dataset["t"].astype(str)
 
         # Handle categorical data
         for col in dataset.select_dtypes(include=['object']).columns:
@@ -450,8 +450,8 @@ def model():
         for i in range(iter):
             inputs = {}
             if "t" in features:  # Only ask for timestamp if it's in the selected features
-                unix_time = st.number_input(f"Enter Unix timestamp for prediction {i + 1}", min_value=0, key=f"timestamp_{i}")
-                inputs["t"] = unix_time
+                t_value = st.number_input(f"Enter integer value for 't' in prediction {i + 1}", min_value=0, step=1, key=f"t_value_{i}")
+                inputs["t"] = t_value
 
             input_data_list.append(inputs)
 
@@ -466,6 +466,7 @@ def model():
             st.write("### Predicted Prices")
             for i, pred in enumerate(predictions):
                 st.write(f"Prediction {i + 1}: {pred:.2f}")
+
 # get_chart_value(dataset_links=dataset_links)
 # predict_price()
 
