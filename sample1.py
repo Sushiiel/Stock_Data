@@ -410,17 +410,17 @@ def model():
             r2=r2_score(y_test,y_pred)
             st.success("Model trained successfully!")
             st.write("### Model Evaluation")
-            st.write(f"**Mean Absolute Error (MAE):** {mae:.2f}")
-            st.write(f"**Mean Squared Error (MSE):** {mse:.2f}")
-            st.write(f"**Root Mean Squared Error (RMSE):** {rmse:.2f}")
-            st.write(f"**R² Score (Accuracy):** {r2:.4f}")
+            st.write(f"**MAE:** {mae:.2f}")
+            st.write(f"**MSE:** {mse:.2f}")
+            st.write(f"**RMSE:** {rmse:.2f}")
+            st.write(f"**R² Score:** {r2:.4f}")
             st.session_state.model_accuracy=r2
     except Exception as e:
         st.error(f"Error: {e}")
     if "regressor" in st.session_state and st.session_state.regressor is not None:
-        iter=st.number_input("Enter number of predictions needed",min_value=1,step=1,value=1)
+        iter_count=st.number_input("Enter number of predictions needed",min_value=1,step=1,value=1)
         input_data_list=[]
-        for i in range(iter):
+        for i in range(iter_count):
             inputs={}
             for feature in features:
                 if feature=="t":
@@ -433,34 +433,24 @@ def model():
                 else:
                     inputs[feature]=st.number_input(f"Enter value for {feature} for prediction {i+1}",key=f"{feature}_{i}")
             input_data_list.append(inputs)
-
         if st.button("Predict"):
-            if "predictions" in st.session_state:
-                del st.session_state.predictions  # Clear old predictions
-                
             test_df=pd.DataFrame(input_data_list)
-            st.write("Debug: Input Data Before Scaling:", test_df)  # Debugging
-            
             test_df_scaled=st.session_state.scaler.transform(test_df)
-            st.write("Debug: Scaled Input Data:", test_df_scaled)  # Debugging
-            
             predictions=st.session_state.regressor.predict(test_df_scaled)
-            st.session_state.predictions=predictions  # Store new predictions
-            
+            st.session_state.predictions=predictions
             st.write("### Predicted Prices")
             for i,pred in enumerate(predictions):
                 st.write(f"Prediction {i+1}: **{pred:.2f}**")
             if "model_accuracy" in st.session_state:
                 st.write(f"**Model Accuracy (R² Score):** {st.session_state.model_accuracy:.4f}")
-            st.write("### Refreshing in 10 seconds... ⏳")
-            time.sleep(10)
-            countdown_placeholder = st.empty()
-            for i in range(countdown_duration, 0, -1):
-                     countdown_placeholder.write(f"⏳ Time remaining: {i} seconds")
-                     time.sleep(1)
-            countdown_placeholder.write("✅ Time's up!")
+            countdown_placeholder=st.empty()
+            for i in range(10,0,-1):
+                countdown_placeholder.write(f"🔄 Refreshing in {i} seconds...")
+                time.sleep(1)
+            countdown_placeholder.write("✅ Refreshing Now!")
             clear_state()
             st.rerun()
+
 
 # get_chart_value(dataset_links=dataset_links)
 # predict_price()
