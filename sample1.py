@@ -431,16 +431,26 @@ def model():
                 else:
                     inputs[feature]=st.number_input(f"Enter value for {feature} for prediction {i+1}",key=f"{feature}_{i}")
             input_data_list.append(inputs)
+
         if st.button("Predict"):
+            if "predictions" in st.session_state:
+                del st.session_state.predictions  # Clear old predictions
+                
             test_df=pd.DataFrame(input_data_list)
+            st.write("Debug: Input Data Before Scaling:", test_df)  # Debugging
+            
             test_df_scaled=st.session_state.scaler.transform(test_df)
+            st.write("Debug: Scaled Input Data:", test_df_scaled)  # Debugging
+            
             predictions=st.session_state.regressor.predict(test_df_scaled)
-            st.session_state.predictions=predictions
+            st.session_state.predictions=predictions  # Store new predictions
+            
             st.write("### Predicted Prices")
             for i,pred in enumerate(predictions):
                 st.write(f"Prediction {i+1}: **{pred:.2f}**")
             if "model_accuracy" in st.session_state:
                 st.write(f"**Model Accuracy (R² Score):** {st.session_state.model_accuracy:.4f}")
+
 # get_chart_value(dataset_links=dataset_links)
 # predict_price()
 
