@@ -11,14 +11,17 @@ from sklearn.preprocessing import MinMaxScaler
 import streamlit as st
 from requests.exceptions import RequestException, ConnectionError, Timeout
 import time
+from datetime import datetime
+from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from airflow import DAG
 from airflow.providers.http.hooks.http import HttpHook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.utils.dates import days_ago
 from airflow.decorators import task
-
+from pendulum import today
+from datetime import datetime
 
 
 
@@ -75,12 +78,12 @@ POSTGRES_CONN_ID='postgres_default'
 API_CONN_ID='open_api'
 default_args={
     'owner':'airflow',
-    'start_date':days_ago(1)
+    'start_date':today('UTC').add(days=-1)
 
 }
 
 
-with DAG(dag_id='stock_pipeline', default_args=default_args, schedule_interval='@daily', catchup=False) as dags:
+with DAG(dag_id='stock_pipeline', default_args=default_args, schedule='@daily', catchup=False) as dags:
     @task()
     def extract_data():
         """Extract Stock price Data"""
@@ -138,7 +141,7 @@ with DAG(dag_id='stock_pipeline', default_args=default_args, schedule_interval='
         
         ## DAG workflow- ETL Pipeline
     stock_data=extract_data()
-    transformed_data=transform_data(stock_data=stock_data)
+    transformed_data=transform_data(stock_data)
     load(transformed_data)
 
 
@@ -319,8 +322,10 @@ def predict_price():
     for i in range(len(df_from_csv)):
         company_name = df_from_csv.iloc[i, 0]
         file_path = f"./Chart_values/{company_name}.json"
+        
         if not os.path.exists(file_path):
             continue
+        
         try:
             with open(file_path, 'r') as json_file:
                 company_data = json.load(json_file)
@@ -331,14 +336,27 @@ def predict_price():
         bse_data = company_data.get("stockpricequote", {}).get("BSE", [])
         if not bse_data or not isinstance(bse_data, list):
             continue
+        
         csv_file_path = f"./Chart_values/{company_name}.csv"
-        with open(csv_file_path, 'a', newline='') as csv_file:
-            writer = csv.DictWriter(csv_file, fieldnames=['t', 'ap', 'cp', 'v'])
+        
+        with open(csv_file_path, 'w', newline='') as csv_file:
+            fieldnames = ['t', 'ap', 'cp', 'v']
+            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
             writer.writeheader()
-            writer.writerows(bse_data)
+            
+            for row in bse_data:
+                try:
+                    formatted_row = {
+                        't': str(row.get('t', '')),  # Keep 't' as a string (if it's a timestamp)
+                        'ap': float(row.get('ap', 0)),  # Convert to float, default to 0 if missing
+                        'cp': float(row.get('cp', 0)),
+                        'v': float(row.get('v', 0))
+                    }
+                    writer.writerow(formatted_row)
+                except ValueError as e:
+                    print(f"Skipping row with invalid values in {company_name}: {row} -> {e}")
 
         print(f"Data successfully written to {csv_file_path}")
-
 
 def get_csv_filenames(folder_path):
     return [os.path.splitext(file)[0] for file in os.listdir(folder_path) if file.endswith('.csv')]
@@ -350,66 +368,109 @@ csv_filenames1 = get_csv_filenames(folder_path)
 
 def model():
     st.subheader("Train the Model")
-    selected_file = None
+    
+    
     company_name = st.selectbox("Select the Company", csv_filenames1)
     selected_file = f"{folder_path}/{company_name}.csv"
 
-    if os.path.exists(selected_file):
-        try:
-            dataset = pd.read_csv(selected_file)
-            if not dataset.empty:
-                features = st.multiselect("Select feature columns", dataset.columns.tolist(), default=dataset.columns[:-1].tolist())
-                target = st.selectbox("Select target column", dataset.columns.tolist(), index=len(dataset.columns) - 1)
-
-                if st.button("Train Model"):
-                    X = dataset[features]
-                    y = dataset[target]
-
-                    # Train-Test Split
-                    from sklearn.model_selection import train_test_split
-                    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-                    # Train Random Forest Regressor
-                    regressor = RandomForestRegressor(n_estimators=100, random_state=42)
-                    regressor.fit(X_train, y_train)
-                    st.session_state.regressor = regressor
-
-                    # Evaluate Model
-                    y_pred = regressor.predict(X_test)
-                    mae = mean_absolute_error(y_test, y_pred)
-                    mse = mean_squared_error(y_test, y_pred)
-                    rmse = mse ** 0.5
-
-                    st.success("Model trained successfully!")
-                    st.write("### Model Evaluation")
-                    st.write(f"**Mean Absolute Error (MAE):** {mae:.2f}")
-                    st.write(f"**Mean Squared Error (MSE):** {mse:.2f}")
-                    st.write(f"**Root Mean Squared Error (RMSE):** {rmse:.2f}")
-        except Exception as e:
-            st.error(f"Error: {e}")
-    else:
+    if not os.path.exists(selected_file):
         st.error(f"File for {company_name} not found. Please check the file path.")
+        return
 
+    try:
+        dataset = pd.read_csv(selected_file)
+
+        if dataset.empty:
+            st.error("Dataset is empty. Check the CSV file.")
+            return
+
+        # Convert 't' column (if present) to Unix timestamp
+        if "t" in dataset.columns:
+            dataset["t"] = pd.to_datetime(dataset["t"], errors='coerce').astype(int) // 10**9  # Convert to Unix
+
+        # Handle categorical data
+        for col in dataset.select_dtypes(include=['object']).columns:
+            dataset[col] = LabelEncoder().fit_transform(dataset[col])
+
+        # Handle missing values
+        dataset.fillna(dataset.mean(), inplace=True)
+
+        # Feature selection
+        features = st.multiselect("Select feature columns", dataset.columns.tolist(), default=dataset.columns[:-1].tolist())
+        target = st.selectbox("Select target column", dataset.columns.tolist(), index=len(dataset.columns) - 1)
+
+        if st.button("Train Model"):
+            X = dataset[features]
+            y = dataset[target]
+
+            # Normalize Features
+            scaler = MinMaxScaler()
+            X_scaled = scaler.fit_transform(X)
+
+            # Train-test split
+            X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
+
+            # Train Random Forest
+            regressor = RandomForestRegressor(n_estimators=200, max_depth=10, random_state=42)
+            regressor.fit(X_train, y_train)
+            st.session_state.regressor = regressor
+            st.session_state.scaler = scaler  # Store scaler for later use
+
+            # Model Evaluation
+            y_pred = regressor.predict(X_test)
+            mae = mean_absolute_error(y_test, y_pred)
+            mse = mean_squared_error(y_test, y_pred)
+            rmse = mse ** 0.5
+            r2 = r2_score(y_test, y_pred)  # R² Score
+
+            st.success("Model trained successfully!")
+            st.write("### Model Evaluation")
+            st.write(f"**Mean Absolute Error (MAE):** {mae:.2f}")
+            st.write(f"**Mean Squared Error (MSE):** {mse:.2f}")
+            st.write(f"**Root Mean Squared Error (RMSE):** {rmse:.2f}")
+            st.write(f"**R² Score (Accuracy):** {r2:.4f}")  # Display accuracy
+
+    except Exception as e:
+        st.error(f"Error: {e}")
+
+    # Prediction Section
     if "regressor" in st.session_state and st.session_state.regressor is not None:
-        if "input_data_list" not in st.session_state:
-            st.session_state.input_data_list = []
-
         iter = st.number_input("Enter number of predictions needed", min_value=1, step=1, value=1)
+        input_data_list = []
+
         for i in range(iter):
             inputs = {}
             for feature in features:
-                inputs[feature] = st.number_input(f"Enter value for {feature} for prediction {i + 1}", key=f"{feature}_{i}")
-            if len(st.session_state.input_data_list) < iter:
-                st.session_state.input_data_list.append(inputs)
+                if feature == "t":  # Handle 't' as a dropdown timestamp input
+                    st.write(f"Select timestamp for prediction {i + 1}")
+                    year = st.selectbox("Year", list(range(2020, 2031)), key=f"year_{i}")
+                    month = st.selectbox("Month", list(range(1, 13)), key=f"month_{i}")
+                    day = st.selectbox("Day", list(range(1, 32)), key=f"day_{i}")
+                    hour = st.selectbox("Hour", list(range(0, 24)), key=f"hour_{i}")
+                    minute = st.selectbox("Minute", list(range(0, 60)), key=f"minute_{i}")
+                    second = st.selectbox("Second", list(range(0, 60)), key=f"second_{i}")
+
+                    # Convert selected date-time to Unix timestamp
+                    selected_datetime = datetime(year, month, day, hour, minute, second)
+                    unix_time = int(selected_datetime.timestamp())
+                    inputs[feature] = unix_time
+                else:
+                    inputs[feature] = st.number_input(f"Enter value for {feature} for prediction {i + 1}", key=f"{feature}_{i}")
+
+            input_data_list.append(inputs)
 
         if st.button("Predict"):
-            test_df = pd.DataFrame(st.session_state.input_data_list[:iter])
-            predictions = st.session_state.regressor.predict(test_df)
+            test_df = pd.DataFrame(input_data_list)
+
+            # Normalize Input Data
+            test_df_scaled = st.session_state.scaler.transform(test_df)
+
+            predictions = st.session_state.regressor.predict(test_df_scaled)
             st.session_state.predictions = predictions
-            st.write("Predicted Prices:")
+            st.write("### Predicted Prices")
             for i, pred in enumerate(predictions):
-                st.write(f"Prediction {i + 1}: {pred}")
-get_chart_value(dataset_links=dataset_links)
+                st.write(f"Prediction {i + 1}: {pred:.2f}")
+# get_chart_value(dataset_links=dataset_links)
 # predict_price()
 
 
@@ -417,7 +478,7 @@ def main():
     st.title("Stock Price Prediction")
     st.sidebar.header("Options")
 
-    menu = ["Predict Price", "Train Model"]
+    menu = ["Predict Price", "Train Model", "Convert Timestamp"]
     choice = st.sidebar.selectbox("Select option", menu)
 
     if choice == "Predict Price":
@@ -426,6 +487,14 @@ def main():
     if choice == "Train Model":
         model()
 
+    if choice == "Convert Timestamp":
+        user_date = st.text_input("Enter date (YYYY-MM-DD HH:MM:SS)", "")
+        if st.button("Convert to Unix Timestamp"):
+            try:
+                unix_time = int(datetime.strptime(user_date, '%Y-%m-%d %H:%M:%S').timestamp())
+                st.success(f"Unix Timestamp: {unix_time}")
+            except ValueError:
+                st.error("Invalid date format. Please enter in 'YYYY-MM-DD HH:MM:SS' format.")
 
 if __name__ == "__main__":
     main()
