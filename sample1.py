@@ -393,13 +393,11 @@ def model():
             st.error("Dataset is empty. Check the CSV file.")
             return
 
-        # Ensure 't' column remains as an integer string
-        if "t" in dataset.columns:
-            dataset["t"] = dataset["t"].astype(str)
-
         # Handle categorical data
+        label_encoders = {}
         for col in dataset.select_dtypes(include=['object']).columns:
-            dataset[col] = LabelEncoder().fit_transform(dataset[col])
+            label_encoders[col] = LabelEncoder()
+            dataset[col] = label_encoders[col].fit_transform(dataset[col])
 
         # Handle missing values
         dataset.fillna(dataset.mean(), inplace=True)
@@ -424,6 +422,7 @@ def model():
             regressor.fit(X_train, y_train)
             st.session_state.regressor = regressor
             st.session_state.scaler = scaler  # Store scaler for later use
+            st.session_state.features = features
 
             # Model Evaluation
             y_pred = regressor.predict(X_test)
@@ -444,15 +443,13 @@ def model():
 
     # Prediction Section
     if "regressor" in st.session_state and st.session_state.regressor is not None:
-        iter = st.number_input("Enter number of predictions needed", min_value=1, step=1, value=1)
+        iter_count = st.number_input("Enter number of predictions needed", min_value=1, step=1, value=1)
         input_data_list = []
 
-        for i in range(iter):
+        for i in range(iter_count):
             inputs = {}
-            if "t" in features:  # Only ask for timestamp if it's in the selected features
-                t_value = st.number_input(f"Enter integer value for 't' in prediction {i + 1}", min_value=0, step=1, key=f"t_value_{i}")
-                inputs["t"] = t_value
-
+            for feature in st.session_state.features:
+                inputs[feature] = st.number_input(f"Enter value for {feature} (Prediction {i + 1})", key=f"{feature}_{i}")
             input_data_list.append(inputs)
 
         if st.button("Predict"):
@@ -463,7 +460,7 @@ def model():
 
             predictions = st.session_state.regressor.predict(test_df_scaled)
             st.session_state.predictions = predictions
-            st.write("### Predicted Prices")
+            st.write("### Predicted Values")
             for i, pred in enumerate(predictions):
                 st.write(f"Prediction {i + 1}: {pred:.2f}")
 
