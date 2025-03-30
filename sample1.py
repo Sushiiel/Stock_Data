@@ -370,86 +370,138 @@ def clear_state():
     for key in list(st.session_state.keys()):
         del st.session_state[key]
 
+def create_sequences(data, seq_length):
+    X, y = [], []
+    for i in range(len(data) - seq_length):
+        X.append(data[i:i + seq_length, :-1])  # Features
+        y.append(data[i + seq_length, -1])  # Target
+    return np.array(X), np.array(y)
+
 def model():
-    st.subheader("Train the Model")
-    csv_filenames1=[f[:-4] for f in os.listdir(folder_path) if f.endswith('.csv')]
-    if not csv_filenames1:
-        st.error("No CSV files found in the folder.")
+    st.subheader("Train the LSTM Model")
+    csv_filenames = [f[:-4] for f in os.listdir(folder_path) if f.endswith('.csv')]
+    
+    if not csv_filenames:
+        st.error("No CSV files found.")
         return
-    company_name=st.selectbox("Select the Company",csv_filenames1)
-    selected_file=f"{folder_path}/{company_name}.csv"
+
+    company_name = st.selectbox("Select the Company", csv_filenames)
+    selected_file = f"{folder_path}/{company_name}.csv"
+
     if not os.path.exists(selected_file):
-        st.error(f"File for {company_name} not found. Please check the file path.")
+        st.error(f"File for {company_name} not found.")
         return
+
     try:
-        dataset=pd.read_csv(selected_file)
+        dataset = pd.read_csv(selected_file)
         if dataset.empty:
-            st.error("Dataset is empty. Check the CSV file.")
+            st.error("Dataset is empty.")
             return
+
         if "t" in dataset.columns:
-            dataset["t"]=pd.to_datetime(dataset["t"],errors='coerce').astype(int)//10**9
+            dataset["t"] = pd.to_datetime(dataset["t"], errors='coerce').astype(int) // 10**9
+
         for col in dataset.select_dtypes(include=['object']).columns:
-            dataset[col]=LabelEncoder().fit_transform(dataset[col])
-        dataset.fillna(dataset.mean(),inplace=True)
-        features=st.multiselect("Select feature columns",dataset.columns.tolist(),default=dataset.columns[:-1].tolist())
-        target=st.selectbox("Select target column",dataset.columns.tolist(),index=len(dataset.columns)-1)
-        if st.button("Train Model"):
-            X=dataset[features]
-            y=dataset[target]
-            scaler=MinMaxScaler()
-            X_scaled=scaler.fit_transform(X)
-            X_train,X_test,y_train,y_test=train_test_split(X_scaled,y,test_size=0.2,random_state=42)
-            regressor=RandomForestRegressor(n_estimators=200,max_depth=10,random_state=42)
-            regressor.fit(X_train,y_train)
-            st.session_state.regressor=regressor
-            st.session_state.scaler=scaler
-            y_pred=regressor.predict(X_test)
-            mae=mean_absolute_error(y_test,y_pred)
-            mse=mean_squared_error(y_test,y_pred)
-            rmse=mse**0.5
-            r2=r2_score(y_test,y_pred)
-            st.success("Model trained successfully!")
-            st.write("### Model Evaluation")
+            dataset[col] = LabelEncoder().fit_transform(dataset[col])
+
+        dataset.fillna(dataset.mean(), inplace=True)
+
+        features = st.multiselect("Select feature columns", dataset.columns.tolist(), default=dataset.columns[:-1].tolist())
+        target = st.selectbox("Select target column", dataset.columns.tolist(), index=len(dataset.columns) - 1)
+
+        if st.button("Train LSTM Model"):
+            seq_length = 5  # Number of past time steps to use for prediction
+
+            X = dataset[features].values
+            y = dataset[target].values.reshape(-1, 1)
+
+            scaler = MinMaxScaler()
+            X_scaled = scaler.fit_transform(X)
+            y_scaled = scaler.fit_transform(y)
+
+            data_scaled = np.hstack((X_scaled, y_scaled))  # Combine for sequential splitting
+
+            X_seq, y_seq = create_sequences(data_scaled, seq_length)
+
+            split = int(0.8 * len(X_seq))
+            X_train, X_test = X_seq[:split], X_seq[split:]
+            y_train, y_test = y_seq[:split], y_seq[split:]
+
+            # Define LSTM model
+            model = Sequential([
+                LSTM(50, activation='relu', return_sequences=True, input_shape=(seq_length, len(features))),
+                LSTM(50, activation='relu'),
+                Dense(1)
+            ])
+            model.compile(optimizer='adam', loss='mse')
+
+            model.fit(X_train, y_train, epochs=50, batch_size=16, verbose=1, validation_data=(X_test, y_test))
+
+            st.session_state.lstm_model = model
+            st.session_state.scaler = scaler
+
+            y_pred = model.predict(X_test)
+            y_pred = scaler.inverse_transform(y_pred)
+
+            mae = mean_absolute_error(y_test, y_pred)
+            mse = mean_squared_error(y_test, y_pred)
+            rmse = np.sqrt(mse)
+            r2 = r2_score(y_test, y_pred)
+
+            st.success("LSTM Model Trained Successfully!")
             st.write(f"**MAE:** {mae:.2f}")
             st.write(f"**MSE:** {mse:.2f}")
             st.write(f"**RMSE:** {rmse:.2f}")
             st.write(f"**R² Score:** {r2:.4f}")
-            st.session_state.model_accuracy=r2
+
+            st.session_state.model_accuracy = r2
+
     except Exception as e:
         st.error(f"Error: {e}")
-    if "regressor" in st.session_state and st.session_state.regressor is not None:
-        iter_count=st.number_input("Enter number of predictions needed",min_value=1,step=1,value=1)
-        input_data_list=[]
+
+    if "lstm_model" in st.session_state and st.session_state.lstm_model is not None:
+        iter_count = st.number_input("Enter number of predictions needed", min_value=1, step=1, value=1)
+        input_data_list = []
+
         for i in range(iter_count):
-            inputs={}
+            inputs = []
             for feature in features:
-                if feature=="t":
-                    date_input=st.date_input(f"Select Date for prediction {i+1}",key=f"date_{i}")
-                    time_input=st.time_input(f"Select Time for prediction {i+1}",key=f"time_{i}")
+                if feature == "t":
+                    date_input = st.date_input(f"Select Date for prediction {i+1}", key=f"date_{i}")
+                    time_input = st.time_input(f"Select Time for prediction {i+1}", key=f"time_{i}")
                     if date_input and time_input:
-                        dt_combined=datetime.combine(date_input,time_input)
-                        unix_time=int(dt_combined.timestamp())
-                        inputs[feature]=unix_time
+                        dt_combined = datetime.combine(date_input, time_input)
+                        unix_time = int(dt_combined.timestamp())
+                        inputs.append(unix_time)
                 else:
-                    inputs[feature]=st.number_input(f"Enter value for {feature} for prediction {i+1}",key=f"{feature}_{i}")
+                    inputs.append(st.number_input(f"Enter value for {feature} for prediction {i+1}", key=f"{feature}_{i}"))
+
             input_data_list.append(inputs)
+
         if st.button("Predict"):
-            test_df=pd.DataFrame(input_data_list)
-            test_df_scaled=st.session_state.scaler.transform(test_df)
-            predictions=st.session_state.regressor.predict(test_df_scaled)
-            st.session_state.predictions=predictions
+            test_df = pd.DataFrame(input_data_list, columns=features)
+            test_df_scaled = st.session_state.scaler.transform(test_df)
+
+            # Reshape for LSTM prediction
+            test_df_scaled = np.expand_dims(test_df_scaled, axis=0)  # Shape (1, timesteps, features)
+
+            predictions = st.session_state.lstm_model.predict(test_df_scaled)
+            predictions = st.session_state.scaler.inverse_transform(predictions)
+
+            st.session_state.predictions = predictions
             st.write("### Predicted Prices")
-            for i,pred in enumerate(predictions):
-                st.write(f"Prediction {i+1}: **{pred:.2f}**")
+            for i, pred in enumerate(predictions):
+                st.write(f"Prediction {i+1}: **{pred[0]:.2f}**")
+
             if "model_accuracy" in st.session_state:
                 st.write(f"**Model Accuracy (R² Score):** {st.session_state.model_accuracy:.4f}")
-            countdown_placeholder=st.empty()
-            for i in range(10,0,-1):
+
+            countdown_placeholder = st.empty()
+            for i in range(10, 0, -1):
                 countdown_placeholder.write(f"🔄 Refreshing in {i} seconds...")
                 time.sleep(1)
             countdown_placeholder.write("✅ Refreshing Now!")
             del st.session_state.predictions
-            clear_state()
             st.rerun()
 
 
