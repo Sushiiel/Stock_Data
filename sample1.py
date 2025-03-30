@@ -162,7 +162,7 @@ with DAG(dag_id='stock_pipeline', default_args=default_args, schedule='@daily', 
     dataset_names = dataset_names.reset_index(drop=True)
     dataset_links = dataset_links.reset_index(drop=True)
 
-    folder_path = "./Chart_values"
+    folder_path = "./new_folder"
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
     
@@ -272,7 +272,7 @@ dataset_links = pd.read_csv("./links.csv", header=None)
 links = Tracker(url="https://www.moneycontrol.com/india/stockpricequote/")
 dataset_names = dataset_names.reset_index(drop=True)
 dataset_links = dataset_links.reset_index(drop=True)
-folder_path = "./Chart_values"
+folder_path = "./new_folder"
 if not os.path.exists(folder_path):
     os.makedirs(folder_path)
 
@@ -321,7 +321,7 @@ df_from_csv = pd.read_csv(csv_file_path)
 def predict_price():
     for i in range(len(df_from_csv)):
         company_name = df_from_csv.iloc[i, 0]
-        file_path = f"./Chart_values/{company_name}.json"
+        file_path = f"./new_folder/{company_name}.json"
         
         if not os.path.exists(file_path):
             continue
@@ -337,7 +337,7 @@ def predict_price():
         if not bse_data or not isinstance(bse_data, list):
             continue
         
-        csv_file_path = f"./Chart_values/{company_name}.csv"
+        csv_file_path = f"./new_folder/{company_name}.csv"
         
         with open(csv_file_path, 'w', newline='') as csv_file:
             fieldnames = ['t', 'ap', 'cp', 'v']
@@ -362,7 +362,7 @@ def get_csv_filenames(folder_path):
     return [os.path.splitext(file)[0] for file in os.listdir(folder_path) if file.endswith('.csv')]
 
 
-folder_path = './Chart_values'
+folder_path = './new_folder'
 csv_filenames1 = get_csv_filenames(folder_path)
 
 
