@@ -369,8 +369,15 @@ csv_filenames1 = get_csv_filenames(folder_path)
 def model():
     st.subheader("Train the Model")
     
+    if csv_filenames1:
+    default_index = csv_filenames1.index("360onewam") if "360onewam" in csv_filenames1 else 0
+    company_name = st.selectbox("Select the Company", csv_filenames1, index=default_index)
+    else:
+    st.error("No CSV files found in the folder.")
+    st.stop()
     
-    company_name = st.selectbox("Select the Company", csv_filenames1, index=csv_filenames1.index("360onewam") if "360onewam" in csv_filenames1 else 0)
+    
+    
     selected_file = f"{folder_path}/{company_name}.csv"
 
     if not os.path.exists(selected_file):
