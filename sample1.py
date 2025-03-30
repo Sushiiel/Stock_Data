@@ -373,13 +373,11 @@ def model():
     # Get CSV files from folder
     csv_filenames1 = [f[:-4] for f in os.listdir(folder_path) if f.endswith('.csv')]
 
-    if csv_filenames1:
-        default_index = csv_filenames1.index("360onewam") if "360onewam" in csv_filenames1 else 0
-        company_name = st.selectbox("Select the Company", csv_filenames1, index=default_index)
-    else:
+    if not csv_filenames1:
         st.error("No CSV files found in the folder.")
-        st.stop()
+        return
 
+    company_name = st.selectbox("Select the Company", csv_filenames1)
     selected_file = f"{folder_path}/{company_name}.csv"
 
     if not os.path.exists(selected_file):
@@ -393,11 +391,13 @@ def model():
             st.error("Dataset is empty. Check the CSV file.")
             return
 
+        # Convert 't' column (if present) to Unix timestamp
+        if "t" in dataset.columns:
+            dataset["t"] = pd.to_datetime(dataset["t"], errors='coerce').astype(int) // 10**9  # Convert to Unix
+
         # Handle categorical data
-        label_encoders = {}
         for col in dataset.select_dtypes(include=['object']).columns:
-            label_encoders[col] = LabelEncoder()
-            dataset[col] = label_encoders[col].fit_transform(dataset[col])
+            dataset[col] = LabelEncoder().fit_transform(dataset[col])
 
         # Handle missing values
         dataset.fillna(dataset.mean(), inplace=True)
@@ -422,34 +422,41 @@ def model():
             regressor.fit(X_train, y_train)
             st.session_state.regressor = regressor
             st.session_state.scaler = scaler  # Store scaler for later use
-            st.session_state.features = features
 
             # Model Evaluation
             y_pred = regressor.predict(X_test)
             mae = mean_absolute_error(y_test, y_pred)
             mse = mean_squared_error(y_test, y_pred)
             rmse = mse ** 0.5
-            r2 = r2_score(y_test, y_pred)  # R² Score
 
             st.success("Model trained successfully!")
             st.write("### Model Evaluation")
             st.write(f"**Mean Absolute Error (MAE):** {mae:.2f}")
             st.write(f"**Mean Squared Error (MSE):** {mse:.2f}")
             st.write(f"**Root Mean Squared Error (RMSE):** {rmse:.2f}")
-            st.write(f"**R² Score (Accuracy):** {r2:.4f}")  # Display accuracy
 
     except Exception as e:
         st.error(f"Error: {e}")
 
     # Prediction Section
     if "regressor" in st.session_state and st.session_state.regressor is not None:
-        iter_count = st.number_input("Enter number of predictions needed", min_value=1, step=1, value=1)
+        iter = st.number_input("Enter number of predictions needed", min_value=1, step=1, value=1)
         input_data_list = []
 
-        for i in range(iter_count):
+        for i in range(iter):
             inputs = {}
-            for feature in st.session_state.features:
-                inputs[feature] = st.number_input(f"Enter value for {feature} (Prediction {i + 1})", key=f"{feature}_{i}")
+            for feature in features:
+                if feature == "t":  # Handle 't' as a timestamp input
+                    date_input = st.date_input(f"Select Date for prediction {i + 1}", key=f"date_{i}")
+                    time_input = st.time_input(f"Select Time for prediction {i + 1}", key=f"time_{i}")
+                    
+                    if date_input and time_input:
+                        dt_combined = datetime.combine(date_input, time_input)
+                        unix_time = int(dt_combined.timestamp())  # Convert to Unix timestamp
+                        inputs[feature] = unix_time
+                else:
+                    inputs[feature] = st.number_input(f"Enter value for {feature} for prediction {i + 1}", key=f"{feature}_{i}")
+
             input_data_list.append(inputs)
 
         if st.button("Predict"):
@@ -460,9 +467,9 @@ def model():
 
             predictions = st.session_state.regressor.predict(test_df_scaled)
             st.session_state.predictions = predictions
-            st.write("### Predicted Values")
+            st.write("### Predicted Prices")
             for i, pred in enumerate(predictions):
-                st.write(f"Prediction {i + 1}: {pred:.2f}")
+                st.write(f"Prediction {i + 1}: **{pred:.2f}**")
 
 # get_chart_value(dataset_links=dataset_links)
 # predict_price()
