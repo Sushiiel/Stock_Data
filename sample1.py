@@ -450,6 +450,9 @@ def model():
                 st.write(f"Prediction {i+1}: **{pred:.2f}**")
             if "model_accuracy" in st.session_state:
                 st.write(f"**Model Accuracy (R² Score):** {st.session_state.model_accuracy:.4f}")
+            st.write("### Refreshing in 40 seconds... ⏳")
+            time.sleep(40)
+            st.rerun()
 
 # get_chart_value(dataset_links=dataset_links)
 # predict_price()
