@@ -369,16 +369,17 @@ csv_filenames1 = get_csv_filenames(folder_path)
 
 def model():
     st.subheader("Train the Model")
-    
+
+    # Get CSV files from folder
+    csv_filenames1 = [f[:-4] for f in os.listdir(folder_path) if f.endswith('.csv')]
+
     if csv_filenames1:
-             default_index = csv_filenames1.index("360onewam") if "360onewam" in csv_filenames1 else 0
-             company_name = st.selectbox("Select the Company", csv_filenames1, index=default_index)
+        default_index = csv_filenames1.index("360onewam") if "360onewam" in csv_filenames1 else 0
+        company_name = st.selectbox("Select the Company", csv_filenames1, index=default_index)
     else:
-         st.error("No CSV files found in the folder.")
-         st.stop()
-    
-    
-    
+        st.error("No CSV files found in the folder.")
+        st.stop()
+
     selected_file = f"{folder_path}/{company_name}.csv"
 
     if not os.path.exists(selected_file):
@@ -448,22 +449,9 @@ def model():
 
         for i in range(iter):
             inputs = {}
-            for feature in features:
-                if feature == "t":  # Handle 't' as a dropdown timestamp input
-                    st.write(f"Select timestamp for prediction {i + 1}")
-                    year = st.selectbox("Year", list(range(2020, 2031)), key=f"year_{i}")
-                    month = st.selectbox("Month", list(range(1, 13)), key=f"month_{i}")
-                    day = st.selectbox("Day", list(range(1, 32)), key=f"day_{i}")
-                    hour = st.selectbox("Hour", list(range(0, 24)), key=f"hour_{i}")
-                    minute = st.selectbox("Minute", list(range(0, 60)), key=f"minute_{i}")
-                    second = st.selectbox("Second", list(range(0, 60)), key=f"second_{i}")
-
-                    # Convert selected date-time to Unix timestamp
-                    selected_datetime = datetime(year, month, day, hour, minute, second)
-                    unix_time = int(selected_datetime.timestamp())
-                    inputs[feature] = unix_time
-                else:
-                    inputs[feature] = st.number_input(f"Enter value for {feature} for prediction {i + 1}", key=f"{feature}_{i}")
+            if "t" in features:  # Only ask for timestamp if it's in the selected features
+                unix_time = st.number_input(f"Enter Unix timestamp for prediction {i + 1}", min_value=0, key=f"timestamp_{i}")
+                inputs["t"] = unix_time
 
             input_data_list.append(inputs)
 
