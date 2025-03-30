@@ -358,7 +358,7 @@ def predict_price():
                     print(f"Skipping row with invalid values in {company_name}: {row} -> {e}")
 
         print(f"Data successfully written to {csv_file_path}")
-        
+    st.write("Successfully Data Updated into File from MoneyControl")
 
 def get_csv_filenames(folder_path):
     return [os.path.splitext(file)[0] for file in os.listdir(folder_path) if file.endswith('.csv')]
@@ -485,7 +485,7 @@ def main():
 
     if choice == "Predict Price":
         predict_price()
-        st.write("Successfully Data Updated into File from MoneyControl")
+        
 
     if choice == "Train Model":
         model()
