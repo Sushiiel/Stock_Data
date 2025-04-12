@@ -412,7 +412,6 @@ def model():
 
         ax.yaxis.set_ticks_position('left')
 
-        # Avoid range error for y-ticks when y_gap is too small or zero
         min_price = min(dataset["ap"].min(), dataset["cp"].min())
         max_price = max(dataset["ap"].max(), dataset["cp"].max())
 
@@ -427,9 +426,6 @@ def model():
         ax.legend()
 
         st.pyplot(fig)
-
-        st.write("### Volume Trend")
-        st.bar_chart(dataset.set_index("datetime")["v"])
         if dataset.empty:
             st.error("Dataset is empty. Check the CSV file.")
             return
