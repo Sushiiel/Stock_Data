@@ -397,7 +397,6 @@ def model():
         dataset = dataset.dropna(subset=['t'])
         dataset["datetime"] = pd.to_datetime(dataset["t"], unit='s', errors='coerce')
 
-        # Convert 'ap' and 'cp' to numeric types
         dataset['ap'] = pd.to_numeric(dataset['ap'], errors='coerce')
         dataset['cp'] = pd.to_numeric(dataset['cp'], errors='coerce')
 
@@ -409,10 +408,18 @@ def model():
         y_gap = price_diff / 10
 
         if y_gap == 0:
-            y_gap = 1
+            y_gap = 1  # Set a small non-zero gap if the calculated gap is zero
 
         ax.yaxis.set_ticks_position('left')
-        ax.set_yticks(range(int(min(dataset["ap"].min(), dataset["cp"].min())), int(max(dataset["ap"].max(), dataset["cp"].max())), int(y_gap)))
+
+        # Avoid range error for y-ticks when y_gap is too small or zero
+        min_price = min(dataset["ap"].min(), dataset["cp"].min())
+        max_price = max(dataset["ap"].max(), dataset["cp"].max())
+
+        if min_price == max_price:
+            ax.set_yticks([min_price])
+        else:
+            ax.set_yticks(range(int(min_price), int(max_price), int(y_gap)))
 
         ax.set_xlabel("Date")
         ax.set_ylabel("Price")
