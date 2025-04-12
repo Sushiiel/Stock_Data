@@ -451,6 +451,9 @@ def model():
                 st.write(f"Prediction {i+1}: **{pred:.2f}**")
             if "model_accuracy" in st.session_state:
                 st.write(f"**Model Accuracy (R² Score):** {st.session_state.model_accuracy:.4f}")
+            st.write("### Price Trend Chart")
+            dataset["datetime"] = pd.to_datetime(dataset["t"], unit='s')
+            st.line_chart(dataset.set_index("datetime")[["ap", "cp"]])
             countdown_placeholder=st.empty()
             for i in range(10,0,-1):
                 countdown_placeholder.write(f"🔄 Refreshing in {i} seconds...")
