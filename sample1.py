@@ -393,11 +393,13 @@ def model():
         dataset=pd.read_csv(selected_file)
         st.write("### Price Trend Chart")
 
-        # Ensure that 't' column contains valid timestamps
-        dataset['t'] = pd.to_numeric(dataset['t'], errors='coerce')  # Convert to numeric and set invalid values to NaN
-        dataset = dataset.dropna(subset=['t'])  # Drop rows with NaN values in the 't' column
-
+        dataset['t'] = pd.to_numeric(dataset['t'], errors='coerce')
+        dataset = dataset.dropna(subset=['t'])
         dataset["datetime"] = pd.to_datetime(dataset["t"], unit='s', errors='coerce')
+
+        # Convert 'ap' and 'cp' to numeric types
+        dataset['ap'] = pd.to_numeric(dataset['ap'], errors='coerce')
+        dataset['cp'] = pd.to_numeric(dataset['cp'], errors='coerce')
 
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.plot(dataset["datetime"], dataset["ap"], label="Ask Price", color='blue')
@@ -407,7 +409,7 @@ def model():
         y_gap = price_diff / 10
 
         if y_gap == 0:
-            y_gap = 1  # Set a default gap if the calculated gap is zero
+            y_gap = 1
 
         ax.yaxis.set_ticks_position('left')
         ax.set_yticks(range(int(min(dataset["ap"].min(), dataset["cp"].min())), int(max(dataset["ap"].max(), dataset["cp"].max())), int(y_gap)))
