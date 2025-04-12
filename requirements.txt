@@ -11,3 +11,4 @@ apache-airflow-providers-http
 apache-airflow-providers-postgres  
 pendulum  
 lxml
+matplotlib
