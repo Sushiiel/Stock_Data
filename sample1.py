@@ -392,7 +392,12 @@ def model():
     try:
         dataset=pd.read_csv(selected_file)
         st.write("### Price Trend Chart")
-        dataset["datetime"] = pd.to_datetime(dataset["t"], unit='s')
+
+        # Ensure that 't' column contains valid timestamps
+        dataset['t'] = pd.to_numeric(dataset['t'], errors='coerce')  # Convert to numeric and set invalid values to NaN
+        dataset = dataset.dropna(subset=['t'])  # Drop rows with NaN values in the 't' column
+
+        dataset["datetime"] = pd.to_datetime(dataset["t"], unit='s', errors='coerce')
 
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.plot(dataset["datetime"], dataset["ap"], label="Ask Price", color='blue')
