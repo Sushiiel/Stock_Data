@@ -24,7 +24,7 @@ from airflow.decorators import task
 from pendulum import today
 from datetime import datetime
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
-
+import matplotlib.pyplot as plt
 
 
 
