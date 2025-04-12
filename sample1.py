@@ -391,6 +391,28 @@ def model():
         return
     try:
         dataset=pd.read_csv(selected_file)
+        st.write("### Price Trend Chart")
+        dataset["datetime"] = pd.to_datetime(dataset["t"], unit='s')
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.plot(dataset["datetime"], dataset["ap"], label="Ask Price", color='blue')
+        ax.plot(dataset["datetime"], dataset["cp"], label="Current Price", color='orange')
+
+        price_diff = max(dataset["ap"].max(), dataset["cp"].max()) - min(dataset["ap"].min(), dataset["cp"].min())
+        y_gap = price_diff / 10
+
+        ax.yaxis.set_ticks_position('left')
+        ax.set_yticks(range(int(min(dataset["ap"].min(), dataset["cp"].min())), int(max(dataset["ap"].max(), dataset["cp"].max())), int(y_gap)))
+
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Price")
+        ax.set_title("Price Trend of Ask Price and Current Price")
+        ax.legend()
+
+        st.pyplot(fig)
+
+        st.write("### Volume Trend")
+        st.bar_chart(dataset.set_index("datetime")["v"])
         if dataset.empty:
             st.error("Dataset is empty. Check the CSV file.")
             return
@@ -451,9 +473,6 @@ def model():
                 st.write(f"Prediction {i+1}: **{pred:.2f}**")
             if "model_accuracy" in st.session_state:
                 st.write(f"**Model Accuracy (R² Score):** {st.session_state.model_accuracy:.4f}")
-            st.write("### Price Trend Chart")
-            dataset["datetime"] = pd.to_datetime(dataset["t"], unit='s')
-            st.line_chart(dataset.set_index("datetime")[["ap", "cp"]])
             countdown_placeholder=st.empty()
             for i in range(10,0,-1):
                 countdown_placeholder.write(f"🔄 Refreshing in {i} seconds...")
