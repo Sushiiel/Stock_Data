@@ -401,6 +401,9 @@ def model():
         price_diff = max(dataset["ap"].max(), dataset["cp"].max()) - min(dataset["ap"].min(), dataset["cp"].min())
         y_gap = price_diff / 10
 
+        if y_gap == 0:
+            y_gap = 1  # Set a default gap if the calculated gap is zero
+
         ax.yaxis.set_ticks_position('left')
         ax.set_yticks(range(int(min(dataset["ap"].min(), dataset["cp"].min())), int(max(dataset["ap"].max(), dataset["cp"].max())), int(y_gap)))
 
