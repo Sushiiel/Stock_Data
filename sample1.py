@@ -26,6 +26,9 @@ from datetime import datetime
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 import matplotlib.pyplot as plt
 
+from datetime import datetime, timedelta
+
+days_ago = lambda x: datetime.now() - timedelta(days=x)
 
 
 
