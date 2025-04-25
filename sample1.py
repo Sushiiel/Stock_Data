@@ -389,7 +389,7 @@ def model():
     if not csv_filenames1:
         st.error("No CSV files found in the folder.")
         return
-    company_name=st.selectbox("Select the Company",csv_filenames1)
+    company_name = st.selectbox("Select the Company", csv_filenames1, index=csv_filenames1.index("360onewam") if "360onewam" in csv_filenames1 else 0)
     selected_file=f"{folder_path}/{company_name}.csv"
     if not os.path.exists(selected_file):
         st.error(f"File for {company_name} not found. Please check the file path.")
