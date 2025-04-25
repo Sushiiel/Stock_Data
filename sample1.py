@@ -19,7 +19,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from airflow import DAG
 from airflow.providers.http.hooks.http import HttpHook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.utils.dates import days_ago
+
 from airflow.decorators import task
 from pendulum import today
 from datetime import datetime
@@ -28,7 +28,9 @@ import matplotlib.pyplot as plt
 
 from datetime import datetime, timedelta
 
-days_ago = lambda x: datetime.now() - timedelta(days=x)
+def days_ago(n):
+    return datetime.now() - timedelta(days=n)
+
 
 
 
