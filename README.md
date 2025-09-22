@@ -44,4 +44,12 @@ The stock data is extracted in real-time from [Moneycontrol](https://www.moneyco
    python processing.py
    ```
 
-- **Your Name** - [Your GitHub Profile](https://github.com/Sushiiel)
+
+
+
+
+
+
+
+
+
