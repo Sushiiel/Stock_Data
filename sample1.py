@@ -11,7 +11,7 @@ from sklearn.preprocessing import MinMaxScaler,LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error,mean_squared_error,r2_score
-from matplotlib.ticker import MaxNLocator,FuncFormatter
+from matplotlib.ticker import MaxNLocator,FuncFormatter,ScalarFormatter
 
 DATA_FOLDER="./new_folder"
 REPORT_CSV="./report.csv"
@@ -141,8 +141,9 @@ def _persist_training_config(features,target,metrics=None,company_name=None):
 
 def _format_price_axis(ax):
     ax.yaxis.set_major_locator(MaxNLocator(nbins=6,prune="both"))
-    ax.ticklabel_format(style="plain",axis="y")
-    ax.yaxis.set_major_formatter(FuncFormatter(lambda x,_:f"{x:,.2f}"))
+    sf=ScalarFormatter(useOffset=False)
+    sf.set_scientific(False)
+    ax.yaxis.set_major_formatter(sf)
     ax.grid(True,axis="y",alpha=.25)
 
 def predict_price_ui(folder_path=DATA_FOLDER):
