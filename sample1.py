@@ -1,16 +1,17 @@
-import os, re, csv, json, time
+import os,re,csv,json,time
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import streamlit as st
-from datetime import datetime, timedelta
+from datetime import datetime,timedelta
 from requests import get
-from requests.exceptions import RequestException, ConnectionError, Timeout
+from requests.exceptions import RequestException,ConnectionError,Timeout
 from bs4 import BeautifulSoup
-from sklearn.preprocessing import MinMaxScaler, LabelEncoder
+from sklearn.preprocessing import MinMaxScaler,LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import mean_absolute_error,mean_squared_error,r2_score
+from matplotlib.ticker import MaxNLocator,FuncFormatter
 
 DATA_FOLDER="./new_folder"
 REPORT_CSV="./report.csv"
@@ -24,7 +25,6 @@ class Tracker:
         self.url=url
         self.user_agent={"User-Agent":"Mozilla/5.0 (Linux; Android 6.0; Nexus 5) AppleWebKit/537.36 (KHTML,like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36"}
         self.soup=self.get_soup(url)
-
     def get_soup(self,url,retries=3,timeout=10):
         for _ in range(retries):
             try:
@@ -36,12 +36,10 @@ class Tracker:
             except RequestException:
                 break
         return None
-
     def product_price(self):
         if not self.soup: return "Price Not Found"
         p=self.soup.find("div",{"id":"nsecp"})
         return p.text if p else "Price Not Found"
-
     def extract_links(self,out_csv=LINKS_CSV):
         if not self.soup: return
         table=self.soup.find("table",{"class":"pcq_tbl MT10"})
@@ -141,6 +139,12 @@ def _persist_training_config(features,target,metrics=None,company_name=None):
     if metrics: st.session_state["last_train_metrics"]=metrics
     if company_name: st.session_state["last_trained_company"]=company_name
 
+def _format_price_axis(ax):
+    ax.yaxis.set_major_locator(MaxNLocator(nbins=6,prune="both"))
+    ax.ticklabel_format(style="plain",axis="y")
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda x,_:f"{x:,.2f}"))
+    ax.grid(True,axis="y",alpha=.25)
+
 def predict_price_ui(folder_path=DATA_FOLDER):
     st.title("🔮 Predict Stock Price")
     companies=list_company_csvs(folder_path)
@@ -181,10 +185,11 @@ def predict_price_ui(folder_path=DATA_FOLDER):
         if chart_df.empty:
             st.info("Not enough data to draw.")
         else:
-            fig,ax=plt.subplots(figsize=(10,4))
+            fig,ax=plt.subplots(figsize=(10,4),constrained_layout=True)
             ax.plot(chart_df["datetime"],chart_df["ap"],label="Ask Price")
             ax.plot(chart_df["datetime"],chart_df["cp"],label="Current Price")
             ax.set_xlabel("Time"); ax.set_ylabel("Price"); ax.legend()
+            _format_price_axis(ax)
             st.pyplot(fig)
         metrics=st.session_state.get("last_train_metrics")
         if metrics:
@@ -282,10 +287,11 @@ def train_model_ui(folder_path=DATA_FOLDER):
     for c in ["ap","cp","v"]:
         if c in df.columns: df[c]=pd.to_numeric(df[c],errors="coerce")
     with st.expander("Show Price Trend"):
-        fig,ax=plt.subplots(figsize=(10,4))
+        fig,ax=plt.subplots(figsize=(10,4),constrained_layout=True)
         ax.plot(df["datetime"],df["ap"],label="Ask Price")
         ax.plot(df["datetime"],df["cp"],label="Current Price")
         ax.set_xlabel("Date"); ax.set_ylabel("Price"); ax.legend()
+        _format_price_axis(ax)
         st.pyplot(fig)
     raw=df.copy()
     if "t" in raw.columns and (np.issubdtype(raw["t"].dtype,np.datetime64) or str(raw["t"].dtype).startswith("datetime64")):
@@ -316,11 +322,12 @@ def train_model_ui(folder_path=DATA_FOLDER):
             st.session_state.model_accuracy=r2
             _persist_training_config(features,target,{"mae":mae,"mse":mse,"rmse":rmse,"r2":r2},company)
             st.success("Model trained successfully.")
-            k1,k2,k3,k4=st.columns(4)
+            k1,k2,k3,k4,k5=st.columns(5)
             k1.metric("MAE",f"{mae:.2f}")
             k2.metric("MSE",f"{mse:.2f}")
             k3.metric("RMSE",f"{rmse:.2f}")
             k4.metric("R²",f"{r2:.4f}")
+            k5.metric("Testing Accuracy",f"{r2:.4f}")
         except Exception as e:
             st.error(f"Training failed: {e}")
 
@@ -346,7 +353,6 @@ try:
     from pendulum import today
     from airflow.providers.http.hooks.http import HttpHook
     from airflow.providers.postgres.hooks.postgres import PostgresHook
-
     default_args={"owner":"airflow","start_date":today("UTC").add(days=-1)}
     with DAG(dag_id="stock_pipeline",default_args=default_args,schedule="@daily",catchup=False) as dag:
         @task()
@@ -358,7 +364,6 @@ try:
             r=http.run(endpoint)
             if r.status_code==200: return r.json()
             raise RuntimeError(f"Failed to fetch data: {r.status_code}")
-
         @task()
         def transform_data(stock_data):
             if "BSE" in stock_data:
@@ -366,7 +371,6 @@ try:
             if "stockpricequote" in stock_data and "BSE" in stock_data["stockpricequote"]:
                 return [{"timestamp":i["t"],"actual_price":i["ap"],"closed_price":i["cp"],"volume":i["v"]} for i in stock_data["stockpricequote"]["BSE"]]
             raise KeyError("BSE data not found")
-
         @task()
         def load_to_db(rows):
             pg=PostgresHook(postgres_conn_id=POSTGRES_CONN_ID)
@@ -385,7 +389,6 @@ try:
                     (r["timestamp"],r["actual_price"],r["closed_price"],r["volume"])
                 )
             conn.commit(); cur.close(); conn.close()
-
         load_to_db(transform_data(extract_data()))
 except ImportError:
     pass
